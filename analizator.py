@@ -19,25 +19,17 @@ from nltk.probability import FreqDist  # distribution
 
 def open_source_file(file_name):  # открывает исходный файл
 	if file_name.endswith('txt'):
-		source_file_data = open(f'{file_name}', "r",
-								encoding='UTF-8')  # указываем открываемый файл и характеристики
-		raw_source_text = source_file_data.read()
-		return raw_source_text
+		with open(f'{file_name}', "r", encoding='UTF-8') as source_file_data:
+			raw_source_text = source_file_data.read()
+			return raw_source_text
 	elif file_name.endswith('pdf'):
-		pdf_document = file_name
-		doc = fitz.open(pdf_document)
-		text = []  # формируем список текста в страницах
-		pages = range(doc.page_count)
-		for page in pages:
-			page = doc.load_page(page)
-			text.append(page.get_text("text"))
+		doc = fitz.open(file_name)
+		text = [page.get_text("text") for page in doc]
 		raw_source_text = "\n".join(text)
 		return raw_source_text
 	elif file_name.endswith('docx'):
-		source_file_data = docx.Document(f'{file_name}')
-		text = []  # формируем список текста в абзацах
-		for paragraph in source_file_data.paragraphs:
-			text.append(paragraph.text)
+		source_file_data = docx.Document(file_name)
+		text = [paragraph.text for paragraph in source_file_data.paragraphs]
 		raw_source_text = "\n".join(text)
 		return raw_source_text
 
@@ -81,7 +73,7 @@ def lemmatization(no_spam_tokens):  # приводит слова к норма�
 
 
 def storing_to_dataframe(lemmatized_tokens, single_lemmatized_tokens,
-						 saved_file_name):  # записываем результаты в таблицу
+                         saved_file_name):  # записываем результаты в таблицу
 	lemmatized_data = dict(col1=lemmatized_tokens)
 	single_lemmatized_data = dict(col1=single_lemmatized_tokens)
 	single_lemmatized_dataframe = pd.DataFrame(single_lemmatized_data)
@@ -119,15 +111,7 @@ def frequency_plotter(freq_of_dist):
 	plt.clf()
 
 
-def get_file_and_directory():
-	messagebox.showinfo('Уведомление', 'Выберите файл для анализа')
-	file_name = filedialog.askopenfilename()
-	messagebox.showinfo('Уведомление', 'Выберите или создайте папку для сохранения результатов')
-	saved_file_name = filedialog.askdirectory()
-	return file_name, saved_file_name
-
-
-def main():
+def main(file_name, saved_file_name):
 	def data_to_docx():
 		data_out = docx.Document()
 		data_out.add_paragraph("Характеристики текста:")
@@ -136,9 +120,9 @@ def main():
 		data_out.add_paragraph(f'Знаков пунктуации: {len(raw_source_text) - len(cleared_text)}')
 		data_out.add_paragraph(f'Текст содержит слов: {len(text_tokens)}')
 		data_out.add_paragraph(f'Самое частое слово до уборки стоп-слов:'
-							   f' "{most_common_word[0]}" в количестве {most_common_word[1]}')
+		                       f' "{most_common_word[0]}" в количестве {most_common_word[1]}')
 		data_out.add_paragraph(f'Самое частое слово после уборки стоп-слов:'
-							   f'"{cleared_most_common_word[0]}" в количестве {cleared_most_common_word[1]}')
+		                       f'"{cleared_most_common_word[0]}" в количестве {cleared_most_common_word[1]}')
 		data_out.add_paragraph(f'Слов после удаления стоп-слов: {len(no_spam_tokens)}')
 		data_out.add_paragraph(f'Удалено стоп-слов: {len(text_tokens) - len(no_spam_tokens)}')
 		data_out.add_paragraph(
@@ -152,8 +136,7 @@ def main():
 		data_out.add_paragraph("График 2. Слова после уборки стоп-слов")
 		data_out.add_picture('1.png')
 		data_out.save(f'{saved_file_name}\\Результаты анализа.docx')
-
-	file_name, saved_file_name = get_file_and_directory()
+	
 	raw_source_text = open_source_file(file_name)
 	cleared_text = raw_text_processing(raw_source_text)[0]
 	tokenized_text, text_tokens = tokenization(cleared_text)
@@ -162,88 +145,109 @@ def main():
 	storing_to_dataframe(lemmatized_tokens, single_lemmatized_tokens, saved_file_name)
 	most_common_word, freq_of_dist = get_most_common_words(tokenized_text)
 	cleared_most_common_word, cleared_freq_of_dist = get_most_common_words(no_spam_tokens)
-
-	def ngrams_cal(saved_file_name, text_input, ngram_count, word_or_symbol):
-		if word_or_symbol == 1:
-			united_text = ''.join(text_input)
-			raw_grams = ngrams(united_text, ngram_count)
-			counted_ngrams = Counter(raw_grams)
-			df = pd.DataFrame(counted_ngrams.keys())
-			df["Количество употреблений"] = counted_ngrams.values()
-			df.to_excel(f'{saved_file_name}\\Результат подсчета n-грамм.xlsx')
-		elif word_or_symbol == 2:
-			raw_grams = ngrams(text_input, ngram_count)
-			counted_ngrams = Counter(raw_grams)
-			df = pd.DataFrame(counted_ngrams.keys())
-			df["Количество употреблений"] = counted_ngrams.values()
-			df.to_excel(f'{saved_file_name}\\Результат подсчета n-грамм.xlsx')
-
-	return data_to_docx, ngrams_cal, saved_file_name, raw_source_text, tokenized_text, no_spam_tokens, lemmatized_tokens
+	return data_to_docx, raw_source_text, tokenized_text, no_spam_tokens, lemmatized_tokens
 
 
+def ngrams_cal(save_file_name, text_input, ngram_count, word_or_symbol):
+	if word_or_symbol == 'Анализ символов':
+		united_text = ''.join(text_input)
+		raw_grams = ngrams(united_text, ngram_count)
+		counted_ngrams = Counter(raw_grams)
+		df = pd.DataFrame(counted_ngrams.keys())
+		df["Количество употреблений"] = counted_ngrams.values()
+		df.to_excel(f'{save_file_name}\\Результат подсчета n-грамм.xlsx')
+	elif word_or_symbol == 'Анализ слов':
+		raw_grams = ngrams(text_input, ngram_count)
+		counted_ngrams = Counter(raw_grams)
+		df = pd.DataFrame(counted_ngrams.keys())
+		df["Количество употреблений"] = counted_ngrams.values()
+		df.to_excel(f'{save_file_name}\\Результат подсчета n-грамм.xlsx')
+	
+	
 def interface():
 	def start():
-		global window
-		window.destroy()
-
 		def ngramm_window_show():
 			def choice():
-				which_ngram = get_selected_type.get()
+				which_ngram = analysis_type.get()
+				print(which_ngram)
 				ngram_count = int(how_many_ngram.get())
-				word_or_symbol = get_word_or_symbol.get()
-
-				def get_ngram_param(which_ngram, ngram_count, word_or_symbol):
-					if which_ngram == 1:
-						program[1](program[2], program[3], ngram_count, word_or_symbol)
-					elif which_ngram == 2:
-						program[1](program[2], program[4], ngram_count, word_or_symbol)
-					elif which_ngram == 3:
-						program[1](program[2], program[5], ngram_count, word_or_symbol)
-					elif which_ngram == 4:
-						program[1](program[2], program[6], ngram_count, word_or_symbol)
-				get_ngram_param(which_ngram, ngram_count, word_or_symbol)
-				ngram_window.destroy()
-
-			ngram_window = Tk()
-			ngram_window.title("Анализ n-грамм")
-			ngram_window.geometry('500x250')
-			get_selected_type = IntVar()
-			get_word_or_symbol = IntVar()
-			rad1 = Radiobutton(ngram_window, text='Оригинальный текст', variable=get_selected_type, value=1)
-			rad2 = Radiobutton(ngram_window, text='Текст без пунктуации и цифр', variable=get_selected_type, value=2)
-			rad3 = Radiobutton(ngram_window, text='Чистый текст без стоп-слов', variable=get_selected_type, value=3)
-			rad4 = Radiobutton(ngram_window, text='Лемматизованный текст', variable=get_selected_type, value=4)
-			rad5 = Radiobutton(ngram_window, text='Анализ символов в тексте', variable=get_word_or_symbol, value=1)
-			rad6 = Radiobutton(ngram_window, text='Анализ слов в тексте', variable=get_word_or_symbol, value=2)
-			btn = Button(ngram_window, text="Запустить анализ n-грамм", command=choice)
-			how_many_ngram = Combobox(ngram_window)
-			how_many_ngram['values'] = (2, 3, 4, 5, 6, 7, 8, 9, 10)
-			how_many_ngram.current(0)
-			rad1.grid(column=0, row=0)
-			rad2.grid(column=0, row=1)
-			rad3.grid(column=0, row=2)
-			rad4.grid(column=0, row=3)
-			rad5.grid(column=0, row=4)
-			rad6.grid(column=1, row=4)
-			how_many_ngram.grid(column=0, row=5)
-			btn.grid(column=0, row=6)
-			ngram_window.mainloop()
-
-		check1 = chk_state1.get()
-		check2 = chk_state2.get()
-		if check1 == 1 or check2 == 1:
-			program = main()
-			if check1 == 1:
-				program[0]()
-				messagebox.showinfo('Уведомление', 'Этап базового анализа выполнен')
-				messagebox.showinfo('Уведомление', 'Работа завершена \nМожно выходить')
-			if check2 == 1:
-				ngramm_window_show()
+				print(ngram_count)
+				word_or_symbol = word_or_symbol_choice.get()
+				print(word_or_symbol)
+				pass_ngram_param(saved_file_name, which_ngram, ngram_count, word_or_symbol)
 				messagebox.showinfo('Уведомление', 'Этап подсчета n-грамм выполнен')
 				messagebox.showinfo('Уведомление', 'Работа завершена \nМожно выходить')
-		elif not check1 != 1 and not check2 != 1:
-			messagebox.showinfo('Уведомление', 'Вы не выбрали ни одного параметра')
-
+				ngram_window.destroy()
+			
+			def pass_ngram_param(saved_file_name, which_ngram, ngram_count, word_or_symbol):
+				if which_ngram == 'Оригинальный текст':
+					print("1")
+					ngrams_cal(saved_file_name, program[1], ngram_count, word_or_symbol)
+				elif which_ngram == 'Без пунктуации и цифр':
+					print("2")
+					ngrams_cal(saved_file_name, program[2], ngram_count, word_or_symbol)
+				elif which_ngram == 'Без стоп-слов':
+					print("3")
+					ngrams_cal(saved_file_name, program[3], ngram_count, word_or_symbol)
+				elif which_ngram == 'Лемматизованный текст':
+					ngrams_cal(saved_file_name, program[4], ngram_count, word_or_symbol)
+				else:
+					ngram_window.destroy()
+					messagebox.showinfo('Уведомление', 'Неверно указаны вводные данные')
+					ngramm_window_show()
+			
+			ngram_window = Tk()
+			ngram_window.title("Анализ n-грамм")
+			ngram_label = Label(ngram_window, text='Выберите параметры анализа\n и степень n-граммы', font=("Arial Bold", 14))
+			analysis_type = Combobox(ngram_window)
+			analysis_type['values'] = ['Оригинальный текст', 'Без пунктуации и цифр',
+			                           'Без стоп-слов', 'Лемматизованный текст']
+			analysis_type.current(0)
+			word_or_symbol_choice = Combobox(ngram_window)
+			word_or_symbol_choice['values'] = ['Анализ символов', 'Анализ слов']
+			word_or_symbol_choice.current(0)
+			choice_button = Button(ngram_window, text="Запустить анализ n-грамм", command=choice, padx=5, pady=5, bd=0, fg='#fff',
+			                       bg='#08f', underline=0, activebackground='#fff', activeforeground='#fff', cursor='hand2')
+			how_many_ngram = Combobox(ngram_window)
+			how_many_ngram['values'] = [i for i in range(2, 11)]
+			how_many_ngram.current(0)
+			ngram_label.grid(column=1, row=0, padx=10, pady=10)
+			analysis_type.grid(column=0, row=1, padx=10, pady=10)
+			word_or_symbol_choice.grid(column=1, row=1, padx=10, pady=10)
+			how_many_ngram.grid(column=2, row=1, padx=10, pady=10)
+			choice_button.grid(column=1, row=2, padx=10, pady=10)
+			
+			def btn_focus_in(e=None):
+				choice_button.configure(fg='#08f')
+				choice_button.configure(bg='#fff')
+			
+			def btn_focus_out(e=None):
+				choice_button.configure(bg='#08f')
+				choice_button.configure(fg='#fff')
+			
+			choice_button.bind('<Enter>', btn_focus_in)
+			choice_button.bind('<Leave>', btn_focus_out)
+			
+			ngram_window.mainloop()
+		try:
+			file_name = "{}".format(file_name_entry.get())
+			saved_file_name = "{}".format(save_directory_entry.get())
+			check1 = chk_state1.get()
+			check2 = chk_state2.get()
+			if check1 == 1 or check2 == 1:
+				program = main(file_name, saved_file_name)
+				if check1 == 1:
+					program[0]()
+					messagebox.showinfo('Уведомление', 'Этап базового анализа выполнен')
+					if check2 != 1:
+						messagebox.showinfo('Уведомление', 'Работа завершена \nМожно выходить')
+				if check2 == 1:
+					ngramm_window_show()
+			elif check1 != 1 and not check2 != 1:
+				messagebox.showinfo('Уведомление', 'Вы не выбрали ни одного параметра')
+		except TypeError:
+			messagebox.showinfo('Ошибка', 'Не указано имя файла для анализа')
+			
 	def show_guide():
 		guide_text_source = open('D:\\PITON\\guide_text.txt', "r", encoding='UTF-8')
 		guide_text = guide_text_source.read()
@@ -251,25 +255,108 @@ def interface():
 		guide_window.title('Инструкция по применению')
 		guide_window_label = Label(guide_window, text=guide_text, justify='left')
 		guide_window_label.grid(column=0, row=0)
-
+	
+	def get_file_name():
+		messagebox.showinfo('Уведомление', 'Выберите файл для анализа')
+		file_name = filedialog.askopenfilename()
+		res = "{}".format(file_name)
+		file_name_entry.insert(0, res)
+		return file_name
+	
+	def get_save_directory():
+		messagebox.showinfo('Уведомление', 'Выберите или создайте папку для сохранения результатов')
+		saved_file_name = filedialog.askdirectory()
+		res = "{}".format(saved_file_name)
+		save_directory_entry.insert(0, res)
+		return saved_file_name
+	
 	global window
 	window = Tk()
+	f_top = Frame(window)
+	f_bot = Frame(window)
+	f_left = Frame(window)
+	f_right = Frame(window)
 	window.title("Анализатор ЕЯ")
-	window.geometry('500x250')
-	label = Label(window, text="Анализатор естественного языка", font=("Arial Bold", 14), justify='right')
-	label.grid(padx=0, pady=0, column=0, row=0)
-	guide = Button(window, text="Инструкция по применению", command=show_guide)
-	guide.grid(padx=0, pady=20, column=0, row=1)
-	start_button = Button(window, text="ПУСК", command=start)
-	start_button.grid(padx=0, pady=25, column=0, row=4)
+	window.resizable = True
+	label = Label(f_top, text="Анализатор естественного языка", font=("Arial Bold", 14), justify='right')
+	guide_button = Button(f_top, text='Инструкция по применению', command=show_guide, padx=5, pady=5, bd=0, fg='#fff',
+	                      bg='#08f', underline=0, activebackground='#fff', activeforeground='#fff', cursor='hand2')
+	description1 = Label(f_left, text="Выберите составляющие анализа:", font=("Arial Bold", 14))
+	description2 = Label(f_right, text="Выберите или введите путь к файлу", font=("Arial Bold", 14))
+	description3 = Label(f_right, text="Выберите или введите путь\nдля сохранения результатов", font=("Arial Bold", 14))
+	start_button = Button(f_left, text="ПУСК", command=start, padx=5, pady=5, bd=0, fg='#fff', bg='#08f',
+	                      underline=0, activebackground='#fff', activeforeground='#fff', cursor='hand2')
+	file_name_entry = Entry(f_right, width=50)
+	save_directory_entry = Entry(f_right, width=50)
+	file_name_button = Button(f_right, text="Загрузить", command=get_file_name, padx=5, pady=5, bd=0, fg='#fff', bg='#08f',
+	                      underline=0, activebackground='#fff', activeforeground='#fff', cursor='hand2')
+	save_directory_button = Button(f_right, text="Загрузить", command=get_save_directory, padx=5, pady=5, bd=0, fg='#fff', bg='#08f',
+	                      underline=0, activebackground='#fff', activeforeground='#fff', cursor='hand2')
 	chk_state1 = IntVar()
 	chk_state1.set(1)
-	chk1 = Checkbutton(window, text='Базовый анализ', var=chk_state1)
-	chk1.grid(column=0, row=2)
+	chk1 = Checkbutton(f_left, text='Базовый анализ', var=chk_state1, cursor='hand2')
 	chk_state2 = IntVar()
 	chk_state2.set(1)
-	chk2 = Checkbutton(window, text='Анализ n-грамм', var=chk_state2)
-	chk2.grid(column=0, row=3)
+	chk2 = Checkbutton(f_left, text='Анализ n-грамм', var=chk_state2, cursor='hand2')
+	
+	f_top.pack(side=TOP)
+	f_left.pack(side=LEFT)
+	f_right.pack(side=RIGHT)
+	f_bot.pack(side=BOTTOM, pady=10, padx=10)
+	label.pack(side=TOP, padx=5, pady=5)
+	guide_button.pack(side=TOP, padx=5, pady=15)
+	description1.grid(column=0, row=0, padx=5, pady=5)
+	chk1.grid(column=0, row=1, padx=5, pady=5)
+	chk2.grid(column=0, row=2, padx=5, pady=5)
+	description2.grid(column=0, row=0, padx=5, pady=5)
+	file_name_entry.grid(column=0, row=1, padx=5, pady=5)
+	file_name_button.grid(column=1, row=1, padx=5, pady=5)
+	description3.grid(column=0, row=2, padx=5, pady=5)
+	save_directory_entry.grid(column=0, row=3, padx=5, pady=5)
+	save_directory_button.grid(column=1, row=3, padx=10, pady=10)
+	start_button.grid(column=0, row=3, pady=20)
+
+	def guide_focus_in(e=None):
+		guide_button.configure(fg='#08f')
+		guide_button.configure(bg='#fff')
+	
+	def start_focus_in(e=None):
+		start_button.configure(fg='#08f')
+		start_button.configure(bg='#fff')
+	
+	def file_focus_in(e=None):
+		file_name_button.configure(fg='#08f')
+		file_name_button.configure(bg='#fff')
+	
+	def save_focus_in(e=None):
+		save_directory_button.configure(fg='#08f')
+		save_directory_button.configure(bg='#fff')
+	
+	def guide_focus_out(e=None):
+		guide_button.configure(bg='#08f')
+		guide_button.configure(fg='#fff')
+	
+	def start_focus_out(e=None):
+		start_button.configure(bg='#08f')
+		start_button.configure(fg='#fff')
+	
+	def file_focus_out(e=None):
+		file_name_button.configure(bg='#08f')
+		file_name_button.configure(fg='#fff')
+	
+	def save_focus_out(e=None):
+		save_directory_button.configure(bg='#08f')
+		save_directory_button.configure(fg='#fff')
+	
+	guide_button.bind('<Enter>', guide_focus_in)
+	guide_button.bind('<Leave>', guide_focus_out)
+	start_button.bind('<Enter>', start_focus_in)
+	start_button.bind('<Leave>', start_focus_out)
+	file_name_button.bind('<Enter>', file_focus_in)
+	file_name_button.bind('<Leave>', file_focus_out)
+	save_directory_button.bind('<Enter>', save_focus_in)
+	save_directory_button.bind('<Leave>', save_focus_out)
+	
 	window.mainloop()
 
 
